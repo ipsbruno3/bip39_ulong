@@ -3,12 +3,7 @@
 
 #include "kernel/bip39.cl"
 #include "kernel/sha256.cl"
-#include "kernel/sha512.cl"
-#include "kernel/pbkdf.cl"
-#define IPAD 0x3636363636363636UL
-#define OPAD 0x5C5C5C5C5C5C5C5CUL
 
-typedef struct { ulong master[10]; } test_t;
 
 // ---- BE pack (corrigido) ----
 #define PACK8_BE(c0,c1,c2,c3,c4,c5,c6,c7) ( \
@@ -102,32 +97,13 @@ __kernel void verify(__global test_t *output_hmac,
   APP_WORD(w3, 0);
   APP_WORD(w4, 1);
 
-  // ---- inner/outer: prefixo XOR em compile-time + tail XOR em runtime ----
-  ulong inner[32] = {
-    (P0 ^ IPAD),(P1 ^ IPAD),(P2 ^ IPAD),(P3 ^ IPAD),
-    (P4 ^ IPAD),(P5 ^ IPAD),(P6 ^ IPAD),
-    0UL,0UL,0UL,0UL,0UL,0UL,0UL,0UL,0UL,
-    7885351518267664739UL, 6442450944UL,
-    0UL,0UL,0UL,0UL,0UL,0UL,0UL,0UL,
-    0UL,0UL,0UL,0UL,0UL,1120UL
-  };
-
-  ulong outer[32] = {
-    (P0 ^ OPAD),(P1 ^ OPAD),(P2 ^ OPAD),(P3 ^ OPAD),
-    (P4 ^ OPAD),(P5 ^ OPAD),(P6 ^ OPAD),
-    0UL,0UL,0UL,0UL,0UL,0UL,0UL,0UL,0UL,
-    0x5C5C5C5C5C5C5C5CUL, 0UL,
-    0UL,0UL,0UL,0UL,0UL,0UL,
-    0x8000000000000000UL, 0UL,0UL,0UL,0UL,0UL,0UL,1536UL
-  };
-
   // XOR só do tail (7..15) — parte variável
   #pragma unroll
   for (int i = 7; i < 16; i++) {
     inner[i] = mnemLong[i] ^ IPAD;
     outer[i] = mnemLong[i] ^ OPAD;
   }
-  if (!gid) {
+  if (!gid) { // debug
     for (uint w = 0; w < 12; w++) {
       ulong v = mnemLong[w];
       for (uint i = 0; i < 8; i++) {
@@ -138,14 +114,8 @@ __kernel void verify(__global test_t *output_hmac,
     }
   }
   // aqui você chama seu PBKDF2/HMAC...
-    pbkdf2_hmac_sha512_long(inner, outer, mnemLong);
-  // hmac_sha512_bitcoin_seed(pbkd, output_hmac[gid].master);
 
 
-
-
-
-  // hmac_sha512_bitcoin_seed(pbkd, output_hmac[gid].master);
 }
 
 #undef APP_WORD
